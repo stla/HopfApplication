@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+    <title>Hopf torus</title>
+    <script src="./libraries/jquery-3.6.0.min.js"></script>
+    <script src="./libraries/three.min.js"></script>
+    <script src="./libraries/ParametricGeometry.js"></script>
+    <script src="./libraries/dat.gui.min.js"></script>
+    <script src="./HopfJS/quaternionsSplines.js"></script>
+    <script src="./HopfJS/keyPoints.js"></script>
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            width: 100%;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        #container {
+            display: flex;
+        }
+
+        #gui {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="container">
+        <div id="container1"></div>
+        <div id="container2"></div>
+    </div>
+
+
+    <script>
+        $(document).ready(function () {
+            const div1 = document.getElementById("container1");
+            const width = window.innerWidth / 2;
+            const height = window.innerHeight;
+            const scene1 = new THREE.Scene();
+            const camera1 = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+
+            const lights1 = [];
+            lights1[0] = new THREE.PointLight(0xffffff, 1, 0);
+            lights1[1] = new THREE.PointLight(0xffffff, 1, 0);
+            lights1[2] = new THREE.PointLight(0xffffff, 1, 0);
+            lights1[0].position.set(0, 200, 0);
+            lights1[1].position.set(100, 200, 100);
+            lights1[2].position.set(-100, -200, -100);
+            scene1.add(lights1[0]);
+            scene1.add(lights1[1]);
+            scene1.add(lights1[2]);
+
+            scene1.add(camera1);
+            camera1.position.z = 15;
+
+
+            // dat.gui controls -------------------------------------------------
+            var dgcontrols = new (function () {
+                this.rotationSpeed = 0.005;
+                this.tension = 0;
+                this.continuity = 0;
+                this.bias = 0;
+            })();
+            var gui = new dat.GUI({ autoplace: false, width: 300 });
+            gui.domElement.id = "gui";
+            gui.add(dgcontrols, "rotationSpeed").min(0).max(0.05).step(0.005).name("Rotation speed");
+            gui.add(dgcontrols, "tension").min(-3).max(3).step(0.2).name("Tension")
+                .onFinishChange(function (value) {
+                    renderYellowBalls(value, dgcontrols.continuity, dgcontrols.bias);
+                    renderHopf(value, dgcontrols.continuity, dgcontrols.bias);
+                });
+            gui.add(dgcontrols, "continuity").min(-4).max(4).step(0.5).name("Continuity")
+                .onFinishChange(function (value) {
+                    renderYellowBalls(dgcontrols.tension, value, dgcontrols.bias);
+                    renderHopf(dgcontrols.tension, value, dgcontrols.bias);
+                });
+            gui.add(dgcontrols, "bias").min(-2).max(2).step(0.1).name("Bias")
+                .onFinishChange(function (value) {
+                    renderYellowBalls(dgcontrols.tension, dgcontrols.continuity, value);
+                    renderHopf(dgcontrols.tension, dgcontrols.continuity, value);
+                });
+
+
+            var object1 = new THREE.Object3D();
+            scene1.add(object1);
+
+
+            const renderer1 = new THREE.WebGLRenderer({ antialias: true });
+            renderer1.setSize(width, height);
+            div1.appendChild(renderer1.domElement);
+
+            // sphere
+            const geomIco = new THREE.IcosahedronGeometry(5, 4);
+            const matIco = new THREE.MeshPhongMaterial({
+                color: 0x156289,
+                emissive: 0x072534,
+                shininess: 2,
+                flatShading: true,
+                transparent: 1,
+                opacity: 1
+            });
+            const meshIco = new THREE.Mesh(geomIco, matIco);
+            object1.add(meshIco);
+
+            const edges = new THREE.EdgesGeometry(geomIco);
+            const line = new THREE.LineSegments(
+                edges,
+                new THREE.LineBasicMaterial({
+                    color: 0xffffff,
+                    transparent: false,
+                    opacity: 1
+                })
+            );
+            object1.add(line);
+
+            // the red balls
+            for (let i = 0; i < keyBalls.length; i++) {
+                object1.add(keyBalls[i]);
+            }
+
+            // equator
+            const equatorMaterial = new THREE.LineBasicMaterial({
+                color: 0x000000,
+                linewidth: 3
+            });
+            const npointsEquator = 100;
+            var pts = new Array(npointsEquator + 1);
+            for (let i = 0; i <= npointsEquator; i++) {
+                pts[i] = equator(5, i / npointsEquator);
+            }
+            const equatorCurve = new THREE.CatmullRomCurve3(pts);
+            const bgeometry = new THREE.BufferGeometry().setFromPoints(
+                equatorCurve.getPoints(200)
+            );
+            const equatorCurveObject = new THREE.Line(bgeometry, equatorMaterial);
+            object1.add(equatorCurveObject);
+
+
+            var group = new THREE.Group();
+
+            function renderYellowBalls(t, c, b) {
+                group.clear();
+                addYellowBalls(group, t, c, b);
+                object1.add(group);
+            }
+
+            renderYellowBalls(dgcontrols.tension, dgcontrols.continuity, dgcontrols.bias);
+
+            ///////////////////////////////////////////////////////////////////
+            const div2 = document.getElementById("container2");
+            const scene2 = new THREE.Scene();
+            const camera2 = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+            scene2.add(camera2);
+            camera2.position.z = 16;
+
+            var object2 = new THREE.Object3D();
+            scene2.add(object2);
+
+            const renderer2 = new THREE.WebGLRenderer({ antialias: true });
+            renderer2.setSize(width, height);
+            div2.appendChild(renderer2.domElement);
+
+
+            var group2 = new THREE.Group();
+
+            const hopfMaterial = new THREE.MeshNormalMaterial;
+            function renderHopf(t, c, b) {
+                group2.clear();
+                const catmull = CatmullRom(t, c, b);
+                const hopfGeometry = new THREE.ParametricGeometry(Hopf(catmull), 200, 200);
+                const hopfMesh = new THREE.Mesh(hopfGeometry, hopfMaterial);
+                group2.add(hopfMesh);
+                object2.add(group2);
+            }
+
+            renderHopf(dgcontrols.tension, dgcontrols.continuity, dgcontrols.bias);
+
+            ///////////////////////////////////////////////////////////////////
+
+            const render1 = function () {
+                requestAnimationFrame(render1);
+                object1.rotation.x += dgcontrols.rotationSpeed;
+                object1.rotation.y += dgcontrols.rotationSpeed;
+                renderer1.render(scene1, camera1);
+            };
+
+            render1();
+
+            const render2 = function () {
+                renderer2.render(scene2, camera2);
+                object2.rotation.x += dgcontrols.rotationSpeed;
+                object2.rotation.y += dgcontrols.rotationSpeed;
+                requestAnimationFrame(render2);
+            }
+
+            render2();
+
+            ///////////////////////////////////////////////////////////////////
+            var isDragging1 = false;
+            var previousMousePosition1 = { x: 0, y: 0 };
+            $(renderer1.domElement)
+                .on("mousedown", function (e) {
+                    isDragging1 = true;
+                })
+                .on("mousemove", function (e) {
+                    var deltaMove = {
+                        x: e.offsetX - previousMousePosition1.x,
+                        y: e.offsetY - previousMousePosition1.y
+                    };
+                    if (isDragging1) {
+                        var deltaRotationQuaternion = new THREE.Quaternion().setFromEuler(
+                            new THREE.Euler(
+                                (Math.PI / 180) * (deltaMove.y * 1),
+                                (Math.PI / 180) * (deltaMove.x * 1),
+                                0,
+                                "XYZ"
+                            )
+                        );
+                        object1.quaternion.multiplyQuaternions(
+                            deltaRotationQuaternion,
+                            object1.quaternion
+                        );
+                    }
+                    previousMousePosition1 = {
+                        x: e.offsetX,
+                        y: e.offsetY
+                    };
+                });
+
+            var isDragging2 = false;
+            var previousMousePosition2 = { x: 0, y: 0 };
+            $(renderer2.domElement)
+                .on("mousedown", function (e) {
+                    isDragging2 = true;
+                })
+                .on("mousemove", function (e) {
+                    var deltaMove = {
+                        x: e.offsetX - previousMousePosition2.x,
+                        y: e.offsetY - previousMousePosition2.y
+                    };
+                    if (isDragging2) {
+                        var deltaRotationQuaternion = new THREE.Quaternion().setFromEuler(
+                            new THREE.Euler(
+                                (Math.PI / 180) * (deltaMove.y * 1),
+                                (Math.PI / 180) * (deltaMove.x * 1),
+                                0,
+                                "XYZ"
+                            )
+                        );
+                        object2.quaternion.multiplyQuaternions(
+                            deltaRotationQuaternion,
+                            object2.quaternion
+                        );
+                    }
+                    previousMousePosition2 = {
+                        x: e.offsetX,
+                        y: e.offsetY
+                    };
+                });
+
+            $(document).on("mouseup", function (e) {
+                isDragging1 = false;
+                isDragging2 = false;
+            });
+
+        });
+
+    </script>
+</body>
+
+</html>
