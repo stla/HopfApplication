@@ -7,3 +7,5 @@ Any spherical curve corresponds to a Hopf torus. The Hopf torus lives in the fou
 ![](https://raw.githubusercontent.com/stla/HopfApplication/main/screenshots/screenshot2.png)
 
 ![](https://raw.githubusercontent.com/stla/HopfApplication/main/screenshots/screenshot3.png)
+
+You can play with this application on [my blog](https://laustep.github.io/stlahblog/frames/threejs_HopfApp.html).
